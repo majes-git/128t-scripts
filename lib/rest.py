@@ -109,3 +109,19 @@ class RestApi(object):
         else:
             message = request.json()['message']
             raise UnauthorizedException(message)
+
+    def get_routers(self):
+        return self.get('/router').json()
+
+    def get_router_name(self):
+        self.router_name = self.get_routers()[0]['name']
+        return self.router_name
+
+    def get_nodes(self, router_name):
+        return self.get('/config/running/authority/router/{}/node'.format(
+            router_name)).json()
+
+    def get_node_name(self):
+        request = self.get('/router/{}/node'.format(self.router_name))
+        self.node_name = request.json()[0]['name']
+        return self.node_name
