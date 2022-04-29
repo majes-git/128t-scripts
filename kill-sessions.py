@@ -27,7 +27,7 @@ def get_filtered_sessions(api, args):
             {
               allNodes {
                 nodes {
-                  flowEntries {
+                  flowEntries(first: 100000) {
                     nodes {
                       sessionUuid
                       serviceName
@@ -55,6 +55,9 @@ def get_filtered_sessions(api, args):
                 sessions[id] = []
             sessions[id].append(flow)
 
+        if not args.quiet:
+            print('Total number of sessions:', len(sessions))
+
         for flows in sessions.values():
             interfaces = [flow['networkInterfaceName'] for flow in flows]
             for flow in flows:
@@ -71,7 +74,10 @@ def get_filtered_sessions(api, args):
                 filtered_sessions[id] = sessions[id]
                 break
 
+        if not args.quiet:
+            print('Matching number of sessions:', len(filtered_sessions))
         return filtered_sessions
+
     else:
         error('Retrieving sessions table has failed: {} ({})'.format(
               request.text, request.status_code))
