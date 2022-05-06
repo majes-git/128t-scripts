@@ -21,7 +21,7 @@ class RestApi(object):
         self.user = user
         self.password = password
 
-    def get(self, location, authorization_required=True):
+    def get(self, location, authorization_required=True, **kwargs):
         """Get data per REST API."""
         url = 'https://{}/api/v1/{}'.format(self.host, location.strip('/'))
         headers = {
@@ -34,10 +34,10 @@ class RestApi(object):
                 headers['Authorization'] = 'Bearer {}'.format(self.token)
         request = requests.get(
             url, headers=headers,
-            verify=self.verify)
+            verify=self.verify, **kwargs)
         return request
 
-    def post(self, location, json, authorization_required=True):
+    def post(self, location, json, authorization_required=True, **kwargs):
         """Send data per REST API via post."""
         url = 'https://{}/api/v1/{}'.format(self.host, location.strip('/'))
         headers = {
@@ -51,10 +51,10 @@ class RestApi(object):
                 headers['Authorization'] = 'Bearer {}'.format(self.token)
         request = requests.post(
             url, headers=headers, json=json,
-            verify=self.verify)
+            verify=self.verify, **kwargs)
         return request
 
-    def patch(self, location, json, authorization_required=True):
+    def patch(self, location, json, authorization_required=True, **kwargs):
         """Send data per REST API via post."""
         url = 'https://{}/api/v1/{}'.format(self.host, location.strip('/'))
         headers = {
@@ -68,10 +68,10 @@ class RestApi(object):
                 headers['Authorization'] = 'Bearer {}'.format(self.token)
         request = requests.patch(
             url, headers=headers, json=json,
-            verify=self.verify)
+            verify=self.verify, **kwargs)
         return request
 
-    def delete(self, location, authorization_required=True):
+    def delete(self, location, authorization_required=True, **kwargs):
         """Delete data per REST API."""
         url = 'https://{}/api/v1/{}'.format(self.host, location.strip('/'))
         headers = {
@@ -84,7 +84,7 @@ class RestApi(object):
                 headers['Authorization'] = 'Bearer {}'.format(self.token)
         request = requests.delete(
             url, headers=headers,
-            verify=self.verify)
+            verify=self.verify, **kwargs)
         return request
 
     def login(self):
