@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 
 import argparse
+import subprocess
+import time
+import sys
+from requests import ConnectTimeout, ReadTimeout
 from tabulate import tabulate
 
 from lib.log import *
 from lib.rest import RestApi
+
+DAEMONS = ['mars']
+KILL_COMMAND = ['pkill', '-x']
 
 
 def parse_arguments():
@@ -16,6 +23,8 @@ def parse_arguments():
     parser.add_argument('--quiet', action='store_true',
                         help='no output')
     parser.add_argument('--port', help='source/destination port', type=int)
+    parser.add_argument('--kill-daemons', type=float,
+                        help='kill related daemons if api does not respond with X seconds')
     parser.add_argument('--same-interface', action='store_true',
                         help='Same ingress/egress interface')
     return parser.parse_args()
@@ -44,16 +53,35 @@ def get_filtered_sessions(api, args):
             }
         '''
     }
-    request = api.post('/graphql', json)
+    kwargs = {}
+    timeout = args.kill_daemons
+    if timeout:
+        print('Timeout:', timeout)
+        kwargs['timeout'] = timeout
+    try:
+        request = api.post('/graphql', json, **kwargs)
+    except (ConnectTimeout, ReadTimeout):
+        print('Getting sessions took too long. Killing daemons:', *DAEMONS)
+        if not args.dry_run:
+            for daemon in DAEMONS:
+                subprocess.call(KILL_COMMAND + [daemon])
+                time.sleep(1)
+                subprocess.call(KILL_COMMAND + ['-9', daemon])
+        sys.exit(1)
+
     sessions = {}
     filtered_sessions = {}
+    retrieval_failed = False
     if request.status_code == 200:
         # aggregate flows into sessions
-        for flow in request.json()['data']['allNodes']['nodes'][0]['flowEntries']['nodes']:
-            id = flow['sessionUuid']
-            if id not in sessions:
-                sessions[id] = []
-            sessions[id].append(flow)
+        try:
+            for flow in request.json()['data']['allNodes']['nodes'][0]['flowEntries']['nodes']:
+                id = flow['sessionUuid']
+                if id not in sessions:
+                    sessions[id] = []
+                sessions[id].append(flow)
+        except TypeError:
+            retrieval_failed = True
 
         if not args.quiet:
             print('Total number of sessions:', len(sessions))
@@ -79,6 +107,9 @@ def get_filtered_sessions(api, args):
         return filtered_sessions
 
     else:
+        retrieval_failed = True
+
+    if retrieval_failed:
         error('Retrieving sessions table has failed: {} ({})'.format(
               request.text, request.status_code))
 
