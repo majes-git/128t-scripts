@@ -97,6 +97,10 @@ def get_filtered_sessions(api, args):
                     if len(set(interfaces)) != 1:
                         # no match - ignore this flow
                         continue
+                    if interfaces[0] == '<InternalApplication>':
+                        # ignore internal application
+                        continue
+
                 # all criteria are met - add session to filtered_sessions
                 id = flow['sessionUuid']
                 filtered_sessions[id] = sessions[id]
