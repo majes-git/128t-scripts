@@ -124,7 +124,7 @@ def get_stuck_sessions(filtered_sessions):
                     if IKE_PORT not in (flow['sourcePort'], flow['destPort']):
                         # this is the SVR flow
                         if ike_waypoint != '':
-                            error('Found more than one IKE session for client:',
+                            warn('Found more than one IKE session for client:',
                                   client, 'Aborting.')
                         if flow['forward']:
                             ike_waypoint = flow['destIp']
