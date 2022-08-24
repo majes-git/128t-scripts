@@ -106,6 +106,7 @@ def get_filtered_sessions(api, args):
 def get_stuck_sessions(filtered_sessions):
     stuck_sessions = {}
     for client, sessions in filtered_sessions.items():
+        esp_sessions = []
         ike_waypoint = ''
         esp_waypoint = ''
         for id, flows in sessions.items():
@@ -117,6 +118,7 @@ def get_stuck_sessions(filtered_sessions):
                     break
                 if flow['protocol'] == 'ESP':
                     is_esp = True
+                    esp_sessions.append(id)
                     break
 
             if is_ike:
@@ -125,7 +127,7 @@ def get_stuck_sessions(filtered_sessions):
                         # this is the SVR flow
                         if ike_waypoint != '':
                             warn('Found more than one IKE session for client:',
-                                  client, 'Aborting.')
+                                  client)
                         if flow['forward']:
                             ike_waypoint = flow['destIp']
                         else:
@@ -144,24 +146,33 @@ def get_stuck_sessions(filtered_sessions):
                         # this session is ESP, we can go ahead with next session
                         break
 
+        if len(esp_sessions) == 0:
+            warn('No ESP sessions found for client: {}.'.format(client))
+            continue
+
         if not ike_waypoint:
             warn('No IKE session for ESP found ({}).'.format(id),
                  'Checking next client...')
             continue
 
+        if len(esp_sessions) != 1:
+            warn('Unexpected number of ESP sessions: {}.'.format(
+                 len(esp_sessions)))
+
         if ike_waypoint != esp_waypoint:
-            info('Found waypoint mismatch:', id)
-            stuck_sessions[id] = [{
-                'session-id': id,
-                'service-name': flow['serviceName'],
-                'protocol': 'ESP',
-                'ike_waypoint': ike_waypoint,
-                'esp_waypoint': esp_waypoint,
-                'client': client,
-                'svr-interface': flow['networkInterfaceName'],
-                'svr-src-port': flow['sourcePort'],
-                'svr-dst-port': flow['destPort'],
-            }]
+            for id in esp_sessions:
+                info('Found waypoint mismatch:', id)
+                stuck_sessions[id] = [{
+                    'session-id': id,
+                    'service-name': flow['serviceName'],
+                    'protocol': 'ESP',
+                    'ike_waypoint': ike_waypoint,
+                    'esp_waypoint': esp_waypoint,
+                    'client': client,
+                    'svr-interface': flow['networkInterfaceName'],
+                    'svr-src-port': flow['sourcePort'],
+                    'svr-dst-port': flow['destPort'],
+                }]
     return stuck_sessions
 
 
