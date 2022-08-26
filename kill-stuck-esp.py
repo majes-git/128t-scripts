@@ -210,6 +210,8 @@ def main():
         if not args.dry_run:
             print('The following sessions will be deleted:')
             print_session_details(stuck_sessions)
+            with open('/tmp/stuck-esp-sessions.json', 'wb') as fd:
+                json.dump(fd, filtered_sessions)
             for id in stuck_sessions.keys():
                 location = '/router/{}/node/{}/traffic/session?sessionId={}'.format(
                     api.get_router_name(),
