@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import json
 import subprocess
 import time
 import sys
@@ -84,10 +85,7 @@ def get_filtered_sessions(api, args):
                    flow['protocol'] != 'ESP':
                         # no match - ignore this flow
                         continue
-                if flow['forward']:
-                    client = flow['sourceIp']
-                else:
-                    client = flow['destIp']
+                client = flow['sourceIp']
                 id = flow['sessionUuid']
                 if client not in filtered_sessions:
                     filtered_sessions[client] = {}
@@ -150,14 +148,14 @@ def get_stuck_sessions(filtered_sessions):
             warn('No ESP sessions found for client: {}.'.format(client))
             continue
 
-        if not ike_waypoint:
-            warn('No IKE session for ESP found ({}).'.format(id),
-                 'Checking next client...')
-            continue
-
         if len(esp_sessions) != 1:
             warn('Unexpected number of ESP sessions: {}.'.format(
                  len(esp_sessions)))
+
+        if not ike_waypoint:
+            warn('No IKE session for ESP found ({}).'.format(esp_sessions[0]),
+                 'Checking next client...')
+            continue
 
         if ike_waypoint != esp_waypoint:
             for id in esp_sessions:
@@ -197,8 +195,8 @@ def main():
     filtered_sessions = get_filtered_sessions(api, args)
     stuck_sessions = get_stuck_sessions(filtered_sessions)
 
-    with open('/tmp/stuck-esp-sessions.json', 'wb') as fd:
-        json.dump(fd, filtered_sessions)
+    with open('/tmp/stuck-esp-sessions.json', 'w') as fd:
+        json.dump(filtered_sessions, fd)
 
     if filtered_sessions and args.print_sessions:
         sessions = {}
