@@ -195,7 +195,7 @@ def main():
     filtered_sessions = get_filtered_sessions(api, args)
     stuck_sessions = get_stuck_sessions(filtered_sessions)
 
-    with open('/tmp/stuck-esp-sessions.json', 'w') as fd:
+    with open('/var/log/128technology/stuck-esp-sessions.json.log', 'w') as fd:
         json.dump(filtered_sessions, fd)
 
     if filtered_sessions and args.print_sessions:
