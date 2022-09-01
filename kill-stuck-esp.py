@@ -126,10 +126,7 @@ def get_stuck_sessions(filtered_sessions):
                         if ike_waypoint != '':
                             warn('Found more than one IKE session for client:',
                                   client)
-                        if flow['forward']:
-                            ike_waypoint = flow['destIp']
-                        else:
-                            ike_waypoint = flow['sourceIp']
+                        ike_waypoint = flow['sourceIp']
                         # this session is IKE, we can go ahead with next session
                         break
 
@@ -137,10 +134,7 @@ def get_stuck_sessions(filtered_sessions):
                 for flow in flows:
                     if flow['protocol'] == 'UDP':
                         # inspect SVR flow and check if waypoint differs IKE
-                        if flow['forward']:
-                            esp_waypoint = flow['destIp']
-                        else:
-                            esp_waypoint = flow['sourceIp']
+                        esp_waypoint = flow['sourceIp']
                         # this session is ESP, we can go ahead with next session
                         break
 
