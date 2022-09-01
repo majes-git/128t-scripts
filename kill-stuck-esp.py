@@ -23,11 +23,15 @@ def parse_arguments():
                         help='wait X seconds on API calls')
     parser.add_argument('--dry-run', action='store_true',
                         help='show sessions only - no kill')
+    parser.add_argument('--test-file',
+                        help='Load sessions from file for testing')
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--quiet', action='store_true',
                         help='no output')
     group.add_argument('--print-sessions', action='store_true',
                         help='show session details')
+    group.add_argument('--print-sessions-from-file',
+                        help='Load file and show session details')
     return parser.parse_args()
 
 
@@ -168,6 +172,16 @@ def get_stuck_sessions(filtered_sessions):
     return stuck_sessions
 
 
+def format_filtered_sessions(filtered_sessions):
+    sessions = {}
+    for client, cs in filtered_sessions.items():
+        for id, flows in cs.items():
+            for flow in flows:
+                flow['client'] = client
+            sessions[id] = flows
+    return sessions
+
+
 def print_session_details(sessions):
     dataset = [e for s in sessions.values() for e in s]
     header = dataset[0].keys()
@@ -182,23 +196,32 @@ def main():
         pass
 
     args = parse_arguments()
+    if args.print_sessions_from_file:
+        with open(args.print_sessions_from_file) as fd:
+            sessions = json.load(fd)
+            print_session_details(format_filtered_sessions(sessions))
+        return
+
     if args.quiet:
         info = quiet
         warn = quiet
     api = RestApi()
-    filtered_sessions = get_filtered_sessions(api, args)
+    if args.test_file:
+        # restore sessions from file and do not try to kill (--dry-run)
+        with open(args.test_file) as fd:
+            filtered_sessions = json.load(fd)
+        args.dry_run = True
+    else:
+        filtered_sessions = get_filtered_sessions(api, args)
     stuck_sessions = get_stuck_sessions(filtered_sessions)
 
-    with open('/var/log/128technology/stuck-esp-sessions.json.log', 'w') as fd:
-        json.dump(filtered_sessions, fd)
+    if not args.test_file:
+        # do not write a new file in testing mode
+        with open('/var/log/128technology/stuck-esp-sessions.json.log', 'w') as fd:
+            json.dump(filtered_sessions, fd)
 
     if filtered_sessions and args.print_sessions:
-        sessions = {}
-        for client, cs in filtered_sessions.items():
-            for id, flows in cs.items():
-                for flow in flows:
-                    flow['client'] = client
-                sessions[id] = flows
+        sessions = format_filtered_sessions(filtered_sessions)
         print_session_details(sessions)
 
     if stuck_sessions:
