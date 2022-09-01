@@ -157,7 +157,8 @@ def get_stuck_sessions(filtered_sessions):
 
         if ike_waypoint != esp_waypoint:
             for id in esp_sessions:
-                info('Found waypoint mismatch:', id)
+                info('Found waypoint mismatch:', id,
+                     '({} is not {})'.format(ike_waypoint, esp_waypoint))
                 stuck_sessions[id] = [{
                     'session-id': id,
                     'service-name': flow['serviceName'],
