@@ -9,6 +9,10 @@ class UnauthorizedException(Exception):
     pass
 
 
+class MissingNonceException(Exception):
+    pass
+
+
 class RestApi(object):
     """Representation of REST connection."""
 
@@ -27,6 +31,7 @@ class RestApi(object):
         headers = {
             'Content-Type': 'application/json',
         }
+        #print(url)
         if authorization_required:
             if not self.authorized:
                 self.login()
@@ -117,6 +122,9 @@ class RestApi(object):
         self.router_name = self.get_routers()[0]['name']
         return self.router_name
 
+    def get_router_names(self):
+        return [r['name'] for r in self.get_routers()]
+
     def get_nodes(self, router_name):
         return self.get('/config/running/authority/router/{}/node'.format(
             router_name)).json()
@@ -125,3 +133,29 @@ class RestApi(object):
         request = self.get('/router/{}/node'.format(self.router_name))
         self.node_name = request.json()[0]['name']
         return self.node_name
+
+    def get_node_names(self, router_name):
+        return [n['name'] for n in self.get_nodes(router_name)]
+
+    def get_nonce(self):
+        r = self.get('/nonce')
+        if r.status_code == 200:
+            nonce = r.json()['nonce']
+            return nonce
+        else:
+            raise MissingNonceException('Could not retrieve a nonce.')
+
+    def download_file(self, router, node, filename):
+        nonce = self.get_nonce()
+        location = '/router/{}/node/{}/logs/collapsed/download?nonce={}&file={}'.format(
+            router,
+            node,
+            nonce,
+            filename,
+        )
+        r = self.get(location, stream=True)
+        if r.status_code == 200:
+            for chunk in r:
+                yield chunk
+        else:
+            raise FileDownloadException('Could not download: {}'.format(r.text))
