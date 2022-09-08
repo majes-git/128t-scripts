@@ -75,7 +75,7 @@ def get_filtered_sessions(api, args):
                 if id not in sessions:
                     sessions[id] = []
                 sessions[id].append(flow)
-        except TypeError:
+        except (TypeError, IndexError):
             retrieval_failed = True
 
         info('Total number of sessions:', len(sessions))
@@ -226,9 +226,13 @@ def main():
         print_session_details(sessions)
 
     if stuck_sessions:
+        message = 'The following sessions will be deleted:'
+        if args.dry_run:
+            message = 'The following sessions would be deleted (without --dry-run):'
+        print(message)
+        print_session_details(stuck_sessions)
+
         if not args.dry_run:
-            print('The following sessions will be deleted:')
-            print_session_details(stuck_sessions)
             for id in stuck_sessions.keys():
                 location = '/router/{}/node/{}/traffic/session?sessionId={}'.format(
                     api.get_router_name(),
