@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
 import argparse
+import datetime
 import json
+import os
 import subprocess
-import time
 import sys
+import time
 from requests import ConnectTimeout, ReadTimeout
 from tabulate import tabulate
 
@@ -52,6 +54,7 @@ def get_filtered_sessions(api, args):
                       destPort
                       networkInterfaceName
                       forward
+                      startTime
                     }
                   }
                 }
@@ -72,6 +75,18 @@ def get_filtered_sessions(api, args):
         try:
             for flow in request.json()['data']['allNodes']['nodes'][0]['flowEntries']['nodes']:
                 id = flow['sessionUuid']
+
+                duration = int(time.time()) - flow['startTime']
+                days = duration // 86400
+                hours = (duration % 86400) // 3600
+                minutes = (duration % 3600) // 60
+                seconds = duration % 60
+                duration_string = ''
+                if days:
+                    duration_string += '{}d '.format(days)
+                duration_string += '{:02d}:{:02d}:{:02d}'.format(hours, minutes, seconds)
+                flow['duration'] = duration_string
+
                 if id not in sessions:
                     sessions[id] = []
                 sessions[id].append(flow)
@@ -190,6 +205,21 @@ def print_session_details(sessions):
     print(tabulate(rows, header, tablefmt='rst'))
 
 
+def dump_data(sessions):
+    dirname = '/var/log/128technology/kill-stuck-esp_{:%Y-%m-%d_%H-%M-%S}'.format(
+        datetime.datetime.now())
+    os.mkdir(dirname)
+    # sessions
+    with open(os.path.join(dirname, 'sessions.json'), 'w') as fd:
+        json.dump(sessions, fd, indent=4)
+
+    # bgp data
+    subprocess.run('vtysh -c "show bgp summary" > {}'.format(
+        os.path.join(dirname, 'bgp_summary.txt')), shell=True)
+    subprocess.run('vtysh -c "show bgp 0.0.0.0" > {}'.format(
+        os.path.join(dirname, 'bgp_default_route.txt')), shell=True)
+
+
 def main():
     global info
     global warn
@@ -233,6 +263,10 @@ def main():
         print_session_details(stuck_sessions)
 
         if not args.dry_run:
+            # write sessions and other data prior to session removal
+            dump_data(filtered_sessions)
+
+            # delete session
             for id in stuck_sessions.keys():
                 location = '/router/{}/node/{}/traffic/session?sessionId={}'.format(
                     api.get_router_name(),
