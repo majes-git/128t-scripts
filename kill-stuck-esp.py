@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
-import datetime
+from datetime import datetime
 import json
 import os
 import subprocess
@@ -86,6 +86,8 @@ def get_filtered_sessions(api, args):
                     duration_string += '{}d '.format(days)
                 duration_string += '{:02d}:{:02d}:{:02d}'.format(hours, minutes, seconds)
                 flow['duration'] = duration_string
+                flow['startTime'] = '{:%Y-%m-%d %H:%M:%S +0000 (UTC)}'.format(
+                    datetime.utcfromtimestamp(flow['startTime']))
 
                 if id not in sessions:
                     sessions[id] = []
@@ -207,7 +209,7 @@ def print_session_details(sessions):
 
 def dump_data(sessions):
     dirname = '/var/log/128technology/kill-stuck-esp_{:%Y-%m-%d_%H-%M-%S}'.format(
-        datetime.datetime.now())
+        datetime.now())
     os.mkdir(dirname)
     # sessions
     with open(os.path.join(dirname, 'sessions.json'), 'w') as fd:
@@ -249,7 +251,7 @@ def main():
     if not args.test_file:
         # do not write a new file in testing mode
         with open('/var/log/128technology/stuck-esp-sessions.json.log', 'w') as fd:
-            json.dump(filtered_sessions, fd)
+            json.dump(filtered_sessions, fd, indent=4)
 
     if filtered_sessions and args.print_sessions:
         sessions = format_filtered_sessions(filtered_sessions)
