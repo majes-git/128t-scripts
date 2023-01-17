@@ -218,7 +218,7 @@ def dump_data(sessions):
     # bgp data
     subprocess.run('vtysh -c "show bgp summary" > {}'.format(
         os.path.join(dirname, 'bgp_summary.txt')), shell=True)
-    subprocess.run('vtysh -c "show bgp 0.0.0.0" > {}'.format(
+    subprocess.run('vtysh -c "show ip bgp 0.0.0.0" > {}'.format(
         os.path.join(dirname, 'bgp_default_route.txt')), shell=True)
 
 
