@@ -1,6 +1,6 @@
 import os
+import pathlib
 import requests
-
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
@@ -9,87 +9,71 @@ class UnauthorizedException(Exception):
     pass
 
 
-class MissingNonceException(Exception):
-    pass
-
-
-class RestApi(object):
+class RestGraphqlApi(object):
     """Representation of REST connection."""
 
     token = None
     authorized = False
+    headers = {
+        'Content-Type': 'application/json',
+    }
 
-    def __init__(self, host='localhost', verify=False, user='admin', password=None):
+    def __init__(self, host='localhost', verify=False, user='admin', password=None, app=__file__):
         self.host = host
         self.verify = verify
         self.user = user
         self.password = password
+        basename = os.path.basename(app).split('.')[0]
+        self.user_agent = basename
+        self.token_file = os.path.join(
+             pathlib.Path.home(), '.{}.token'.format(basename))
+        self.read_token()
+        self.headers.update({
+             'User-Agent': self.user_agent,
+             'Authorization': f'Bearer {self.token}',
+        })
 
-    def get(self, location, authorization_required=True, **kwargs):
+        self.session = requests.Session()
+        self.session.headers.update(self.headers)
+        self.session.hooks['response'].append(self.refresh_token)
+
+    def read_token(self):
+        try:
+            with open(self.token_file) as fd:
+                self.token = fd.read()
+        except FileNotFoundError:
+            pass
+
+    def write_token(self):
+        try:
+            with open(self.token_file, 'w') as fd:
+                fd.write(self.token)
+        except:
+            raise
+
+    def refresh_token(self, r, *args, **kwargs):
+        if r.status_code == 401:
+            token = self.login()
+            self.session.headers.update({'Authorization': f'Bearer {token}'})
+            r.request.headers['Authorization'] = self.session.headers['Authorization']
+            return self.session.send(r.request, verify=self.verify)
+
+    def get(self, location, authorization_required=True):
         """Get data per REST API."""
         url = 'https://{}/api/v1/{}'.format(self.host, location.strip('/'))
-        headers = {
-            'Content-Type': 'application/json',
-        }
-        #print(url)
-        if authorization_required:
-            if not self.authorized:
-                self.login()
-            if self.token:
-                headers['Authorization'] = 'Bearer {}'.format(self.token)
-        request = requests.get(
-            url, headers=headers,
-            verify=self.verify, **kwargs)
+        request = self.session.get(url, verify=self.verify)
         return request
 
-    def post(self, location, json, authorization_required=True, **kwargs):
+    def post(self, location, json, authorization_required=True):
         """Send data per REST API via post."""
         url = 'https://{}/api/v1/{}'.format(self.host, location.strip('/'))
-        headers = {
-            'Content-Type': 'application/json',
-        }
-        # Login if not yet done
-        if authorization_required:
-            if not self.authorized:
-                self.login()
-            if self.token:
-                headers['Authorization'] = 'Bearer {}'.format(self.token)
-        request = requests.post(
-            url, headers=headers, json=json,
-            verify=self.verify, **kwargs)
+        request = self.session.post(url, json=json, verify=self.verify)
         return request
 
-    def patch(self, location, json, authorization_required=True, **kwargs):
-        """Send data per REST API via post."""
+    def patch(self, location, json, authorization_required=True):
+        """Send data per REST API via patch."""
         url = 'https://{}/api/v1/{}'.format(self.host, location.strip('/'))
-        headers = {
-            'Content-Type': 'application/json',
-        }
-        # Login if not yet done
-        if authorization_required:
-            if not self.authorized:
-                self.login()
-            if self.token:
-                headers['Authorization'] = 'Bearer {}'.format(self.token)
-        request = requests.patch(
-            url, headers=headers, json=json,
-            verify=self.verify, **kwargs)
-        return request
-
-    def delete(self, location, authorization_required=True, **kwargs):
-        """Delete data per REST API."""
-        url = 'https://{}/api/v1/{}'.format(self.host, location.strip('/'))
-        headers = {
-            'Content-Type': 'application/json',
-        }
-        if authorization_required:
-            if not self.authorized:
-                self.login()
-            if self.token:
-                headers['Authorization'] = 'Bearer {}'.format(self.token)
-        request = requests.delete(
-            url, headers=headers,
-            verify=self.verify, **kwargs)
+        request = self.session.patch(url, json=json, verify=self.verify)
         return request
 
     def login(self):
@@ -110,7 +94,8 @@ class RestApi(object):
         request = self.post('/login', json, authorization_required=False)
         if request.status_code == 200:
             self.token = request.json()['token']
-            self.authorized = True
+            self.write_token()
+            return self.token
         else:
             message = request.json()['message']
             raise UnauthorizedException(message)
@@ -125,37 +110,15 @@ class RestApi(object):
     def get_router_names(self):
         return [r['name'] for r in self.get_routers()]
 
-    def get_nodes(self, router_name):
+    def get_nodes(self, router):
         return self.get('/config/running/authority/router/{}/node'.format(
-            router_name)).json()
+            router)).json()
 
-    def get_node_name(self):
-        request = self.get('/router/{}/node'.format(self.router_name))
-        self.node_name = request.json()[0]['name']
-        return self.node_name
+    def get_node_names(self, router):
+        nodes = self.get_nodes(router)
+        node_names = [node['name'] for node in nodes]
+        return node_names
 
-    def get_node_names(self, router_name):
-        return [n['name'] for n in self.get_nodes(router_name)]
-
-    def get_nonce(self):
-        r = self.get('/nonce')
-        if r.status_code == 200:
-            nonce = r.json()['nonce']
-            return nonce
-        else:
-            raise MissingNonceException('Could not retrieve a nonce.')
-
-    def download_file(self, router, node, filename):
-        nonce = self.get_nonce()
-        location = '/router/{}/node/{}/logs/collapsed/download?nonce={}&file={}'.format(
-            router,
-            node,
-            nonce,
-            filename,
-        )
-        r = self.get(location, stream=True)
-        if r.status_code == 200:
-            for chunk in r:
-                yield chunk
-        else:
-            raise FileDownloadException('Could not download: {}'.format(r.text))
+    def get_device_interfaces(self, router, node):
+        return self.get(('/config/running/authority/router/{}/node/{}'
+                         '/device-interface').format(router, node)).json()
