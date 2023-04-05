@@ -8,17 +8,29 @@ if python3 -m zipapp --help | grep -q -- --compress; then
     zipapp="$zipapp --compress"
 fi
 
-cp -a lib $tmpdir/
+if [ -d lib ]; then cp -a lib $tmpdir/; fi
 
-if [ -f requirements.txt ]; then
-  requirements=$(cat requirements.txt)
-  if python3 -c 'import requests' 2>/dev/null; then
-      requirements=$(grep -iv requests requirements.txt)
+if [ "$requirements" != "none" ]; then
+  if [ -z "$requirements" ]; then
+    if [ -f requirements.txt ]; then
+      requirements="$(cat requirements.txt)"
+      if python3 -c 'import requests' 2>/dev/null; then
+        requirements="$(grep -iv requests requirements.txt)"
+      fi
+    fi
   fi
-  python3 -m pip install $requirements --target $tmpdir
+  if [ -n "$requirements" ]; then
+    python3 -m pip install $requirements --target $tmpdir
+  fi
 fi
 
-for script in *.py; do
+if [ $# -lt 1 ]; then
+  scripts=*.py
+else
+  scripts="$@"
+fi
+
+for script in $scripts; do
   cp $script $tmpdir/__main__.py
   $zipapp --python "/usr/bin/env python3" --output ${script}z $tmpdir
 done
