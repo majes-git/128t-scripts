@@ -76,6 +76,12 @@ class RestGraphqlApi(object):
         request = self.session.patch(url, json=json, verify=self.verify)
         return request
 
+    def delete(self, location, authorization_required=True):
+        """Delete object per REST API."""
+        url = 'https://{}/api/v1/{}'.format(self.host, location.strip('/'))
+        request = self.session.delete(url, verify=self.verify)
+        return request
+
     def login(self):
         json = {
             'username': self.user,
