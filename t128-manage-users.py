@@ -20,8 +20,10 @@ def parse_arguments():
                         help='Conductor/router password (if no key auth)')
     parser.add_argument('--dry-run', action='store_true',
                         help='Do not create/modify/delete users')
+    parser.add_argument('--ignore-local-users', action='store_true',
+                        help='Do not modify/delete local users')
     parser.add_argument('--ignore-disabled-users', action='store_true',
-                        help='Do not automaticall enable disabled users')
+                        help='Do not automatically enable disabled users')
     parser.add_argument('--default-admin', action='store_true',
                         help='If role is omitted use "admin" as default instead of "user"')
 
@@ -145,6 +147,9 @@ def main():
 
     # Process reference users
     for name, attributes in users.items():
+        if args.ignore_local_users and attributes['authentication_type'] == 'local':
+                continue
+
         if name not in input_users:
             if name == 'admin':
                 # do not delete the admin user
