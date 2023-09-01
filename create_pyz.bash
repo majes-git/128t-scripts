@@ -8,7 +8,14 @@ if python3 -m zipapp --help | grep -q -- --compress; then
     zipapp="$zipapp --compress"
 fi
 
-if [ -d lib ]; then cp -a lib $tmpdir/; fi
+if [ -z "$libs" ]; then
+  if [ -d lib ]; then cp -a lib $tmpdir/; fi
+else
+  mkdir $tmpdir/lib
+  for lib in $libs; do
+    cp lib/$lib $tmpdir/lib/
+  done
+fi
 
 if [ "$requirements" != "none" ]; then
   if [ -z "$requirements" ]; then
