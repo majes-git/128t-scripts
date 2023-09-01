@@ -12,11 +12,11 @@ def parse_arguments():
     """Get commandline arguments."""
     parser = argparse.ArgumentParser(
         description='Manage users on 128T/SSR routers - read comma separated lines with user attributes: username,full_name,role,local/remote,password')
-    parser.add_argument('-c', '--host', required=True,
+    parser.add_argument('-c', '--host',
                         help='Conductor/router hostname')
-    parser.add_argument('-u', '--user', required=True,
+    parser.add_argument('-u', '--user',
                         help='Conductor/router username (if no key auth)')
-    parser.add_argument('-p', '--password', required=True,
+    parser.add_argument('-p', '--password',
                         help='Conductor/router password (if no key auth)')
     parser.add_argument('--dry-run', action='store_true',
                         help='Do not create/modify/delete users')
@@ -105,11 +105,12 @@ def update_user(api, name, attributes, dry_run):
 
 def main():
     args = parse_arguments()
-    params = {
-        'host': args.host,
-        'user': args.user,
-        'password': args.password,
-    }
+    params = {}
+    if args.host:
+        params['host'] = args.host
+        if args.user and args.password:
+            params['user'] = args.user
+            params['password'] = args.password
     api = RestGraphqlApi(**params)
 
     # Retrieve existing users
