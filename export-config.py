@@ -2,8 +2,9 @@
 
 import argparse
 import datetime
+import os
 
-from lib.rest import RestApi
+from lib.rest import RestGraphqlApi
 
 
 PREFIX = 'auto-backup-'
@@ -16,6 +17,12 @@ def parse_arguments():
     parser.add_argument('--host', help='Conductor/router hostname')
     parser.add_argument('--user', help='Conductor/router username (if no key auth)')
     parser.add_argument('--password', help='Conductor/router password (if no key auth)')
+    parser.add_argument('--directory', default=os.getcwd(),
+                        help='Director to store the download')
+    parser.add_argument('--download', action='store_true',
+                        help='Download the exported config to this machine')
+    parser.add_argument('--keep', action='store_true',
+                        help='Keep backup files on the conductor/router after the download')
     parser.add_argument('--max-backups', type=int, default=3,
                         help='Delete too old backups (default: 3)')
     return parser.parse_args()
@@ -24,6 +31,13 @@ def parse_arguments():
 def create_backup(api):
     name = '{}{:%Y-%m-%d-%H-%M}'.format(PREFIX, datetime.datetime.now())
     r = api.post('/config/export', {'filename': name, 'datastore': 'running'})
+    # return the filename without the path
+    filename = r.json()['exportPath'].replace('/etc/128technology/config-exports/', '')
+    return filename
+
+
+def delete_backup(api, filename):
+    r = api.delete('/config/export/{}'.format(filename))
 
 
 def delete_old_backups(api, max_backups=3):
@@ -37,7 +51,17 @@ def delete_old_backups(api, max_backups=3):
     generated_backups.sort(reverse=True)
     # delete all but <max_backups> most recent backups
     for backup in generated_backups[max_backups:]:
-        r = api.delete('/config/export/{}'.format(backup))
+        delete_backup(api, backup)
+
+
+def download_backup(api, directory, filename):
+    nonce = api.get('/nonce').json()['nonce']
+    r = api.get(f'/config/export/{filename}/download?nonce={nonce}')
+    # write the file to local disk
+    path = os.path.join(directory, filename)
+    with open(path, 'wb') as fd:
+        fd.write(r.content)
+        print('Successfully saved config as:', path)
 
 
 def main():
@@ -48,10 +72,17 @@ def main():
         if args.user and args.password:
             params['user'] = args.user
             params['password'] = args.password
-    api = RestApi(**params)
+    api = RestGraphqlApi(**params)
 
-    create_backup(api)
-    delete_old_backups(api, args.max_backups)
+    filename = create_backup(api)
+    # when the file should be downloaded, just get the file (unless --keep is given)
+    # otherwise do a cleanup
+    if args.download:
+        download_backup(api, args.directory, filename)
+        if not args.keep:
+            delete_backup(api, filename)
+    else:
+        delete_old_backups(api, args.max_backups)
 
 
 if __name__ == '__main__':
