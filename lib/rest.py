@@ -128,3 +128,6 @@ class RestGraphqlApi(object):
     def get_device_interfaces(self, router, node):
         return self.get(('/config/running/authority/router/{}/node/{}'
                          '/device-interface').format(router, node)).json()
+
+    def commit(self):
+        return self.post('/config/commit', {})
