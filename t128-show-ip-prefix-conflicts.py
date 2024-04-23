@@ -52,14 +52,11 @@ def main():
     api = RestGraphqlApi(**params)
 
     try:
-        config = api.get(f'/config/{args.config_store}').json()
+        services = api.get(f'/config/{args.config_store}/authority/service').json()
 
         if args.dump_json:
             with open('t128-show-ip-prefix-conflicts.json', 'w') as fd:
-                json.dump(config, fd)
-
-        authority = config.get('authority', {})
-        services = authority.get('service')
+                json.dump(services, fd)
 
         if not services:
             error('Could not find any service to be checked.')
