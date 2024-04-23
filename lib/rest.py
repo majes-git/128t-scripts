@@ -36,6 +36,10 @@ class RestGraphqlApi(object):
         self.session = requests.Session()
         self.session.headers.update(self.headers)
         self.session.hooks['response'].append(self.refresh_token)
+        self.max_login_attempts = 3
+        self.remaining_login_attempts = self.max_login_attempts
+        self.connection_timeout = 3
+        self.read_timeout = 30
 
     def read_token(self):
         try:
@@ -53,33 +57,44 @@ class RestGraphqlApi(object):
 
     def refresh_token(self, r, *args, **kwargs):
         if r.status_code == 401:
-            token = self.login()
-            self.session.headers.update({'Authorization': f'Bearer {token}'})
-            r.request.headers['Authorization'] = self.session.headers['Authorization']
-            return self.session.send(r.request, verify=self.verify)
+            if self.remaining_login_attempts:
+                self.remaining_login_attempts -= 1
+                token = self.login()
+                self.session.headers.update({'Authorization': f'Bearer {token}'})
+                r.request.headers['Authorization'] = self.session.headers['Authorization']
+                return self.session.send(r.request, verify=self.verify)
+            else:
+                UnauthorizedException(r.json().get('message'))
+        else:
+            # reset login counter
+            self.remaining_login_attempts = self.max_login_attempts
 
     def get(self, location, authorization_required=True):
         """Get data per REST API."""
         url = 'https://{}/api/v1/{}'.format(self.host, location.strip('/'))
-        request = self.session.get(url, verify=self.verify)
+        timeout = (self.connection_timeout, self.read_timeout)
+        request = self.session.get(url, timeout=timeout, verify=self.verify)
         return request
 
     def post(self, location, json, authorization_required=True):
         """Send data per REST API via post."""
         url = 'https://{}/api/v1/{}'.format(self.host, location.strip('/'))
-        request = self.session.post(url, json=json, verify=self.verify)
+        timeout = (self.connection_timeout, self.read_timeout)
+        request = self.session.post(url, json=json, timeout=timeout, verify=self.verify)
         return request
 
     def patch(self, location, json, authorization_required=True):
         """Send data per REST API via patch."""
         url = 'https://{}/api/v1/{}'.format(self.host, location.strip('/'))
-        request = self.session.patch(url, json=json, verify=self.verify)
+        timeout = (self.connection_timeout, self.read_timeout)
+        request = self.session.patch(url, json=json, timeout=timeout, verify=self.verify)
         return request
 
     def delete(self, location, authorization_required=True):
         """Delete object per REST API."""
         url = 'https://{}/api/v1/{}'.format(self.host, location.strip('/'))
-        request = self.session.delete(url, verify=self.verify)
+        timeout = (self.connection_timeout, self.read_timeout)
+        request = self.session.delete(url, timeout=timeout, verify=self.verify)
         return request
 
     def login(self):

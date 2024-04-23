@@ -6,7 +6,7 @@ from ipaddress import ip_network
 from requests.exceptions import ConnectionError
 
 from lib.log import *
-from lib.rest import RestGraphqlApi
+from lib.rest import RestGraphqlApi, UnauthorizedException
 
 
 def parse_arguments():
@@ -21,6 +21,8 @@ def parse_arguments():
                         help='Conductor/router password (if no key auth)')
     parser.add_argument('--config-store', default='running', choices=['running', 'candidate'],
                         help='Config store to be used (running/candidate)')
+    parser.add_argument('-r', '--read-json',
+                        help='Read services config from json file')
     parser.add_argument('--dump-json', action='store_true',
                         help='Write config dump to json file "t128-show-ip-prefix-conflicts.json"')
     return parser.parse_args()
@@ -51,53 +53,63 @@ def main():
             params['password'] = args.password
     api = RestGraphqlApi(**params)
 
-    try:
-        services = api.get(f'/config/{args.config_store}/authority/service').json()
+    if args.read_json:
+        with open(args.read_json) as fd:
+            services = json.load(fd)
+    else:
+        try:
+            services = api.get(f'/config/{args.config_store}/authority/service').json()
 
-        if args.dump_json:
-            with open('t128-show-ip-prefix-conflicts.json', 'w') as fd:
-                json.dump(services, fd)
+            if args.dump_json:
+                with open('t128-show-ip-prefix-conflicts.json', 'w') as fd:
+                    json.dump(services, fd)
 
-        if not services:
-            error('Could not find any service to be checked.')
+        except ConnectionError:
+            error('Could not connect to conductor. Wrong IP address or hostname?')
 
-        for service in services:
-            name = service.get('name')
-            addresses = service.get('address')
+        except UnauthorizedException:
+            error('Could not connect to conductor. Wrong username/password?')
 
-            # sanity checks
-            if service.get('generated'):
+    #print(services)
+
+
+    if not services:
+        error('Could not find any service to be checked.')
+
+    for service in services:
+        name = service.get('name')
+        addresses = service.get('address')
+
+        # sanity checks
+        if service.get('generated'):
+            continue
+
+        if not addresses:
+            if service.get('applicationType') in ('template', 'dhcp-relay'):
+                # templates and dhcp-relay don't have an address
+                continue
+            if service.get('applicationName'):
+                # services with application name shouldn't have an address
+                continue
+            if service.get('domainName'):
+                # services with domain name shouldn't have an address
                 continue
 
-            if not addresses:
-                if service.get('applicationType') in ('template', 'dhcp-relay'):
-                    # templates and dhcp-relay don't have an address
-                    continue
-                if service.get('applicationName'):
-                    # services with application name shouldn't have an address
-                    continue
-                if service.get('domainName'):
-                    # services with domain name shouldn't have an address
-                    continue
+            error('Service has got no addresses:', name)
 
-                error('Service has got no addresses:', name)
+        conflicting_addresses = []
+        for ref_address in addresses:
+            next_index = addresses.index(ref_address) + 1
+            if next_index >= len(addresses):
+                break
+            for comp_address in addresses[next_index:]:
+                if have_conflict(ref_address, comp_address):
+                    conflicting_addresses.append((ref_address, comp_address))
 
-            conflicting_addresses = []
-            for ref_address in addresses:
-                next_index = addresses.index(ref_address) + 1
-                if next_index >= len(addresses):
-                    break
-                for comp_address in addresses[next_index:]:
-                    if have_conflict(ref_address, comp_address):
-                        conflicting_addresses.append((ref_address, comp_address))
-
-            if conflicting_addresses:
-                warn(f'Service "{name}" has conflicting addresses:')
-                for conflict in conflicting_addresses:
-                    print('* {} and {}'.format(*conflict))
-
-    except ConnectionError:
-        error('Could not connect to conductor. Wrong username/password?')
+        if conflicting_addresses:
+            warn(f'Service "{name}" has conflicting addresses:')
+            for conflict in conflicting_addresses:
+                print('* {} and {}'.format(*conflict))
 
 
 if __name__ == '__main__':
