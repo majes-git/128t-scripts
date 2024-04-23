@@ -70,9 +70,6 @@ def main():
         except UnauthorizedException:
             error('Could not connect to conductor. Wrong username/password?')
 
-    #print(services)
-
-
     if not services:
         error('Could not find any service to be checked.')
 
@@ -93,6 +90,9 @@ def main():
                 continue
             if service.get('domainName'):
                 # services with domain name shouldn't have an address
+                continue
+            if service.get('url'):
+                # services with url name shouldn't have an address
                 continue
 
             error('Service has got no addresses:', name)
