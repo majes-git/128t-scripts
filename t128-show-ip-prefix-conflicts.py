@@ -82,6 +82,8 @@ def main():
             error('File is not in a valid format.')
 
         name = service.get('name')
+        if not name:
+            error('File is not in a valid format.')
         addresses = service.get('address')
 
         # sanity checks
