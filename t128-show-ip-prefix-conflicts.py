@@ -22,7 +22,7 @@ def parse_arguments():
     parser.add_argument('--config-store', default='running', choices=['running', 'candidate'],
                         help='Config store to be used (running/candidate)')
     parser.add_argument('-r', '--read-json',
-                        help='Read services config from json file')
+                        help='Read services config from json file, which was created by this tool before')
     parser.add_argument('--dump-json', action='store_true',
                         help='Write config dump to json file "t128-show-ip-prefix-conflicts.json"')
     return parser.parse_args()
@@ -54,8 +54,11 @@ def main():
     api = RestGraphqlApi(**params)
 
     if args.read_json:
-        with open(args.read_json) as fd:
-            services = json.load(fd)
+        try:
+            with open(args.read_json) as fd:
+                services = json.load(fd)
+        except json.decoder.JSONDecodeError:
+            error('File is not in valid JSON format.')
     else:
         try:
             services = api.get(f'/config/{args.config_store}/authority/service').json()
@@ -73,7 +76,11 @@ def main():
     if not services:
         error('Could not find any service to be checked.')
 
+    conflicts = False
     for service in services:
+        if type(service) != dict:
+            error('File is not in a valid format.')
+
         name = service.get('name')
         addresses = service.get('address')
 
@@ -107,9 +114,13 @@ def main():
                     conflicting_addresses.append((ref_address, comp_address))
 
         if conflicting_addresses:
+            conflicts = True
             warn(f'Service "{name}" has conflicting addresses:')
             for conflict in conflicting_addresses:
                 print('* {} and {}'.format(*conflict))
+
+    if not conflicts:
+            info('No conflicts have been found.')
 
 
 if __name__ == '__main__':
