@@ -8,6 +8,12 @@ if python3 -m zipapp --help | grep -q -- --compress; then
     zipapp="$zipapp --compress"
 fi
 
+if [ -n "$additionals" ]; then
+  for additional in $additionals; do
+    cp -a $additional $tmpdir/
+  done
+fi
+
 if [ -z "$libs" ]; then
   if [ -d lib ]; then cp -a lib $tmpdir/; fi
 else
