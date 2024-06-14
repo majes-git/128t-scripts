@@ -9,9 +9,9 @@ def parse_arguments():
     """Get commandline arguments."""
     parser = argparse.ArgumentParser('send UDP packet with DSCP/TOS')
     parser.add_argument('--ip', '-i', required=True, help='destination IP address')
-    parser.add_argument('--dport', '-d', default=12800, help='destination port (default: 12800)')
-    parser.add_argument('--sport', '-s', default=12800, help='source port (default: 12800)')
-    parser.add_argument('--tos', '-t', default=0x10, help='TOS value (default: 0x10)')
+    parser.add_argument('--dport', '-d', type=int, default=12800, help='destination port (default: 12800)')
+    parser.add_argument('--sport', '-s', type=int, default=12800, help='source port (default: 12800)')
+    parser.add_argument('--tos', '-t', type=int, default=0x10, help='TOS value (default: 0x10)')
     return parser.parse_args()
 
 
